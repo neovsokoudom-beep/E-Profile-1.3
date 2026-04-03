@@ -335,16 +335,76 @@ function isAddressCascadeField_(id) { return /_(bp|ca)_(prov|dist|comm|vill)$/.t
 async function restoreAddressCascade_(prefix, saved) { var provEl = document.getElementById(prefix + '_prov'); if (!provEl) return; var prov = saved[prefix + '_prov'] || ''; var dist = saved[prefix + '_dist'] || ''; var comm = saved[prefix + '_comm'] || ''; var vill = saved[prefix + '_vill'] || ''; provEl.value = prov; await onProvChange(prefix); var distEl = document.getElementById(prefix + '_dist'); if (distEl && dist) { distEl.value = dist; await onDistChange(prefix); } var commEl = document.getElementById(prefix + '_comm'); if (commEl && comm) { commEl.value = comm; await onCommChange(prefix); } var villEl = document.getElementById(prefix + '_vill'); if (villEl && vill) villEl.value = vill; }
 
 function restorePanelData() {
-  var pid = PANELS[currentPanel].id; var saved = panelData[pid]; if (!saved) return; var cc = document.getElementById('cardContainer'); if (!cc) return;
+  var pid = PANELS[currentPanel].id;
+  var saved = panelData[pid];
+  if (!saved) return;
+  var cc = document.getElementById('cardContainer');
+  if (!cc) return;
+
   setTimeout(async function() {
+    // ✅ CRITICAL FIX: Reset all counters to 0 before restoring
+    // This ensures IDs match the saved data (fam1, fam2, etc.)
+    if (typeof familyCount !== 'undefined') familyCount = 0;
+    if (typeof lngCount !== 'undefined') lngCount = 0;
+    if (typeof multiCounts !== 'undefined') {
+        multiCounts['work'] = 0;
+        multiCounts['edu'] = 0;
+    }
+
+    // 1. Recreate dynamic entries
     if (pid === 'warning') ensureWarningEntriesFromSaved_(saved);
-    if (pid === 'family') { var famKeys = Object.keys(saved).filter(k => /^fam\d+_/.test(k)); var max = famKeys.length ? Math.max(...famKeys.map(k => parseInt(k.match(/^fam(\d+)_/)[1])||0)) : 0; for(var i=1; i<=max; i++) addFamilyEntry(); }
-    if (pid === 'work' || pid === 'edu') { var prefix = pid === 'work' ? 'w' : 'e'; var keys = Object.keys(saved).filter(k => new RegExp('^'+prefix+'\\d+_').test(k)); var max = keys.length ? Math.max(...keys.map(k => parseInt(k.match(new RegExp('^'+prefix+'(\\d+)_'))[1])||0)) : 0; var label = pid === 'work' ? 'ប្រវត្តិការងារ' : 'ប្រវត្តិការសិក្សា'; for(var i=1; i<=max; i++) addMultiEntry(pid, label); }
-    if (pid === 'language') { var lngKeys = Object.keys(saved).filter(k => /^lng\d+_/.test(k)); var max = lngKeys.length ? Math.max(...lngKeys.map(k => parseInt(k.match(/^lng(\d+)_/)[1])||0)) : 0; for(var i=1; i<=max; i++) addLangEntry(); }
-    Object.keys(saved).forEach(function(key) { if (/_filename$/.test(key)) { var baseId = key.replace(/_filename$/, ''); var nameEl = document.getElementById(baseId + '_name'); if (nameEl) nameEl.textContent = saved[key] || 'ជ្រើសរើសឯកសារ...'; return; } var el = document.getElementById(key); if (el) { if (el.type === 'checkbox') el.checked = saved[key]; else el.value = saved[key]; if (el.tagName === 'SELECT' && !isAddressCascadeField_(key)) el.dispatchEvent(new Event('change')); return; } var radios = cc.querySelectorAll('input[name="' + key + '"]'); radios.forEach(r => { if (r.value === saved[key]) r.checked = true; }); });
+    
+    if (pid === 'family') { 
+      var famKeys = Object.keys(saved).filter(k => /^fam\d+_/.test(k)); 
+      var max = famKeys.length ? Math.max(...famKeys.map(k => parseInt(k.match(/^fam(\d+)_/)[1])||0)) : 0; 
+      for(var i=1; i<=max; i++) addFamilyEntry(); 
+    }
+    
+    if (pid === 'work' || pid === 'edu') { 
+      var prefix = pid === 'work' ? 'w' : 'e'; 
+      var keys = Object.keys(saved).filter(k => new RegExp('^'+prefix+'\\d+_').test(k)); 
+      var max = keys.length ? Math.max(...keys.map(k => parseInt(k.match(new RegExp('^'+prefix+'(\\d+)_'))[1])||0)) : 0; 
+      var label = pid === 'work' ? 'ប្រវត្តិការងារ' : 'ប្រវត្តិការសិក្សា'; 
+      for(var i=1; i<=max; i++) addMultiEntry(pid, label); 
+    }
+    
+    if (pid === 'language') { 
+      var lngKeys = Object.keys(saved).filter(k => /^lng\d+_/.test(k)); 
+      var max = lngKeys.length ? Math.max(...lngKeys.map(k => parseInt(k.match(/^lng(\d+)_/)[1])||0)) : 0; 
+      for(var i=1; i<=max; i++) addLangEntry(); 
+    }
+
+    // 2. Restore field values
+    Object.keys(saved).forEach(function(key) {
+      if (/_filename$/.test(key)) {
+        var baseId = key.replace(/_filename$/, '');
+        var nameEl = document.getElementById(baseId + '_name');
+        if (nameEl) nameEl.textContent = saved[key] || 'ជ្រើសរើសឯកសារ...';
+        return;
+      }
+      var el = document.getElementById(key);
+      if (el) {
+        if (el.type === 'checkbox') el.checked = saved[key];
+        else el.value = saved[key];
+        if (el.tagName === 'SELECT' && !isAddressCascadeField_(key)) {
+          el.dispatchEvent(new Event('change'));
+        }
+        return;
+      }
+      // Restore radio buttons
+      var radios = cc.querySelectorAll('input[name="' + key + '"]');
+      radios.forEach(r => { if (r.value === saved[key]) r.checked = true; });
+    });
+
+    // 3. Restore Cascading Dropdowns & Photos
     if (pid === 'info') renderPhotoPreview_(saved.info_photo_url || '');
-    await restoreAddressCascade_('info_bp', saved); await restoreAddressCascade_('info_ca', saved); await restoreAddressCascade_('fam_ca', saved);
-    syncAllDateYearControls_(); if (pid === 'warning') updateWarningCount_(); if (typeof updateEmpSummary === 'function') setTimeout(updateEmpSummary, 200);
+    await restoreAddressCascade_('info_bp', saved);
+    await restoreAddressCascade_('info_ca', saved);
+    await restoreAddressCascade_('fam_ca', saved);
+    
+    syncAllDateYearControls_();
+    if (pid === 'warning') updateWarningCount_();
+    if (typeof updateEmpSummary === 'function') setTimeout(updateEmpSummary, 200);
   }, 120);
 }
 
