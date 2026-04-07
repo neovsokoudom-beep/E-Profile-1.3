@@ -502,7 +502,15 @@ let currentPanel = 0;
 
 
 // ═══ CASCADING LOCATION DATA ═══
-var DIST_DATA = {};
+var DIST_DATA = {
+  "ភ្នំពេញ": ["ខណ្ឌចំការមន","ខណ្ឌដូនពេញ","ខណ្ឌ៧មករា","ខណ្ឌទួលគោក","ខណ្ឌដង្កោ","ខណ្ឌមានជ័យ","ខណ្ឌឫស្សីកែវ","ខណ្ឌសែនសុខ","ខណ្ឌពោធិ៍សែនជ័យ","ខណ្ឌជ្រោយចង្វារ","ខណ្ឌព្រែកព្នៅ","ខណ្ឌកំបូល","ខណ្ឌបឹងកេងកង","ខណ្ឌច្បារអំពៅ"],
+  "បន្ទាយមានជ័យ": ["ស្រុកមង្គលបូរី","ស្រុកភ្នំស្រុក","ស្រុកព្រះនេត្រព្រះ","ស្រុកអូរជ្រៅ","ស្រុកថ្មពួក","ស្រុកស្វាយចេក","ស្រុកម៉ាឡៃ","ក្រុងសិរីសោភ័ណ","ក្រុងប៉ោយប៉ែត"],
+  "បាត់ដំបង": ["ស្រុកបាណន់","ស្រុកថ្មគោល","ស្រុកបវេល","ស្រុកឯកភ្នំ","ស្រុកមោងឫស្សី","ស្រុករតនមណ្ឌល","ស្រុកសំឡូត","ស្រុកសំពៅលូន","ស្រុកភ្នំព្រឹក","ស្រុកកំរៀង","ស្រុករុក្ខគីរី","ស្រុកបាវិល","ក្រុងបាត់ដំបង"],
+  "កំពង់ចាម": ["ស្រុកបាធាយ","ស្រុកចំការលើ","ស្រុកជើងព្រៃ","ស្រុកកំពង់សៀម","ស្រុកកងមាស","ស្រុកកោះសូទិន","ស្រុកព្រៃឈរ","ស្រុកស្រីសន្ធរ","ស្រុកស្ទឹងត្រង់","ក្រុងកំពង់ចាម"],
+  "សៀមរាប": ["ស្រុកអង្គរជុំ","ស្រុកអង្គរធំ","ស្រុកបន្ទាយស្រី","ស្រុកជីក្រែង","ស្រុកក្រឡាញ់","ស្រុកពួក","ស្រុកប្រាសាទបាគង","ស្រុកសូទ្រនិគម","ស្រុកស្រីស្នំ","ស្រុកស្វាយលើ","ស្រុកវ៉ារិន","ក្រុងសៀមរាប"],
+  "កណ្ដាល": ["ស្រុកកណ្ដាលស្ទឹង","ស្រុកកៀនស្វាយ","ស្រុកខ្សាច់កណ្ដាល","ស្រុកលើកដែក","ស្រុកល្វាឯម","ស្រុកមុខកំពូល","ស្រុកអង្គស្នួល","ស្រុកពញាឮ","ស្រុកស្អាង","ក្រុងតាខ្មៅ"],
+  "តាកែវ": ["ស្រុកបាទី","ស្រុកដូនកែវ","ស្រុកព្រៃកប្បាស","ស្រុកសំរោង","ស្រុកត្រាំកក់","ស្រុកបូរីជលសារ","ស្រុកកោះអណ្ដែត","ស្រុកអង្គរបុរី","ស្រុកគិរីវង់","ក្រុងដូនកែវ"]
+};
 
 var DISTRICT_ALIASES = {
   "ខណ្ឌទូលកោក": "ខណ្ឌទួលគោក",
@@ -558,7 +566,6 @@ var VILLAGE_INDEX_BY_NORM = {};
 var villageDataLoadPromise = null;
 var LOCATION_TREE = {};
 var locationCsvStatus_ = { loaded: false, error: '', notifiedSuccess: false, lastErrorAt: 0 };
-var locationValidation_ = { checked: false, summary: null, issues: [] };
 
 var PROVINCE_CODE_TO_KH = {
   '01': 'បន្ទាយមានជ័យ', '02': 'បាត់ដំបង', '03': 'កំពង់ចាម', '04': 'កំពង់ឆ្នាំង', '05': 'កំពង់ស្ពឺ',
@@ -672,80 +679,6 @@ function uniquePush_(arr, value) {
   if (arr.indexOf(value) === -1) arr.push(value);
 }
 
-function sortKhList_(arr) {
-  return (arr || []).slice().sort(function(a, b) {
-    return String(a || '').localeCompare(String(b || ''), 'km', { sensitivity: 'base' });
-  });
-}
-
-function buildLocationValidationReport_(districtRows, communeRows, villageRows, districtByCode, communeByCode) {
-  var issues = [];
-  var dupDistrictCode = {};
-  var dupCommuneCode = {};
-  var dupVillageCode = {};
-
-  for (var i = 0; i < districtRows.length; i++) {
-    var dCode = String(districtRows[i].district_code || '').trim();
-    var dName = String(districtRows[i].district_kh || '').trim();
-    if (!dCode || !dName) issues.push('Missing district code/name at district row ' + (i + 2));
-    if (dCode) dupDistrictCode[dCode] = (dupDistrictCode[dCode] || 0) + 1;
-  }
-
-  for (var j = 0; j < communeRows.length; j++) {
-    var cCode = String(communeRows[j].commune_code || '').trim();
-    var cName = String(communeRows[j].commune_kh || '').trim();
-    var cDistCode = String(communeRows[j].district_code || '').trim();
-    if (!cCode || !cName) issues.push('Missing commune code/name at commune row ' + (j + 2));
-    if (cCode) dupCommuneCode[cCode] = (dupCommuneCode[cCode] || 0) + 1;
-    if (cDistCode && !districtByCode[cDistCode]) {
-      issues.push('Commune row ' + (j + 2) + ' references unknown district_code ' + cDistCode);
-    }
-  }
-
-  for (var k = 0; k < villageRows.length; k++) {
-    var vCode = String(villageRows[k].village_code || '').trim();
-    var vName = String(villageRows[k].village_kh || '').trim();
-    var vCommCode = String(villageRows[k].commune_code || '').trim();
-    if (!vCode || !vName) issues.push('Missing village code/name at village row ' + (k + 2));
-    if (vCode) dupVillageCode[vCode] = (dupVillageCode[vCode] || 0) + 1;
-    if (vCommCode && !communeByCode[vCommCode]) {
-      issues.push('Village row ' + (k + 2) + ' references unknown commune_code ' + vCommCode);
-    }
-  }
-
-  Object.keys(dupDistrictCode).forEach(function(code) {
-    if (dupDistrictCode[code] > 1) issues.push('Duplicate district_code: ' + code);
-  });
-  Object.keys(dupCommuneCode).forEach(function(code) {
-    if (dupCommuneCode[code] > 1) issues.push('Duplicate commune_code: ' + code);
-  });
-  Object.keys(dupVillageCode).forEach(function(code) {
-    if (dupVillageCode[code] > 1) issues.push('Duplicate village_code: ' + code);
-  });
-
-  return {
-    provinces: Object.keys(LOCATION_TREE).length,
-    districts: districtRows.length,
-    communes: communeRows.length,
-    villages: villageRows.length,
-    issues: issues
-  };
-}
-
-function reportLocationValidation_(summary) {
-  locationValidation_.checked = true;
-  locationValidation_.summary = summary;
-  locationValidation_.issues = summary.issues || [];
-  if (!locationValidation_.issues.length) {
-    console.info('Location validation passed:', summary);
-    return;
-  }
-  console.warn('Location validation issues:', locationValidation_.issues.slice(0, 50));
-  if (typeof showToast === 'function') {
-    showToast('Location data has ' + locationValidation_.issues.length + ' integrity issue(s). Check console logs.', 'error');
-  }
-}
-
 function buildLocationLookup_(districtCsvText, communeCsvText, villageCsvText) {
   var districtRows = parseCsvRows_(districtCsvText);
   var communeRows = parseCsvRows_(communeCsvText);
@@ -802,12 +735,11 @@ function buildLocationLookup_(districtCsvText, communeCsvText, villageCsvText) {
   var communeDataFlat = {};
   var villageDataFlat = {};
   Object.keys(tree).forEach(function(prov) {
-    distData[prov] = sortKhList_(distData[prov]);
     Object.keys(tree[prov]).forEach(function(dist) {
-      var communeNames = sortKhList_(Object.keys(tree[prov][dist]));
+      var communeNames = Object.keys(tree[prov][dist]);
       communeDataFlat[dist] = communeNames.slice();
       communeNames.forEach(function(comm) {
-        villageDataFlat[comm] = sortKhList_(tree[prov][dist][comm]);
+        villageDataFlat[comm] = tree[prov][dist][comm].slice();
       });
     });
   });
@@ -818,8 +750,6 @@ function buildLocationLookup_(districtCsvText, communeCsvText, villageCsvText) {
   Object.keys(VILLAGE_DATA).forEach(function(communeName) {
     VILLAGE_INDEX_BY_NORM[normalizeKhText_(communeName)] = communeName;
   });
-
-  reportLocationValidation_(buildLocationValidationReport_(districtRows, communeRows, villageRows, districtByCode, communeByCode));
 }
 
 async function ensureVillageDataLoaded_() {
@@ -876,9 +806,9 @@ function getDistrictsByProvince_(provinceName) {
 function getCommunesByProvinceDistrict_(provinceName, districtName) {
   if (!provinceName || !districtName) return [];
   if (LOCATION_TREE[provinceName] && LOCATION_TREE[provinceName][districtName]) {
-    return sortKhList_(Object.keys(LOCATION_TREE[provinceName][districtName]));
+    return Object.keys(LOCATION_TREE[provinceName][districtName]);
   }
-  return [];
+  return Array.isArray(COMMUNE_DATA[districtName]) ? COMMUNE_DATA[districtName].slice() : [];
 }
 
 function getVillages(commune, provinceName, districtName) {
@@ -920,7 +850,22 @@ async function onCommChange(prefix) {
   }
 }
 
-var COMMUNE_DATA = {};
+var COMMUNE_DATA = {
+  "ខណ្ឌចំការមន": ["សង្កាត់បឹងត្របែក","សង្កាត់ទន្លេបាសាក់","សង្កាត់បឹងកេងកង១","សង្កាត់បឹងកេងកង២","សង្កាត់បឹងកេងកង៣","សង្កាត់អូឡាំពិក","សង្កាត់ទួលទំពូង១","សង្កាត់ទួលទំពូង២"],
+  "ខណ្ឌដូនពេញ": ["សង្កាត់វត្តភ្នំ","សង្កាត់ស្រះចក","សង្កាត់ផ្សារកណ្ដាល១","សង្កាត់ផ្សារកណ្ដាល២","សង្កាត់ផ្សារថ្មី១","សង្កាត់ផ្សារថ្មី២","សង្កាត់ផ្សារថ្មី៣","សង្កាត់ផ្សារចាស់","សង្កាត់ជ័យជំនះ","សង្កាត់ចតុមុខ"],
+  "ខណ្ឌ៧មករា": ["សង្កាត់មិត្តភាព","សង្កាត់វាលវង់","សង្កាត់បឹងព្រលឹត","សង្កាត់អូរឫស្សី១","សង្កាត់អូរឫស្សី២","សង្កាត់អូរឫស្សី៣","សង្កាត់អូរឫស្សី៤"],
+  "ខណ្ឌទួលគោក": ["សង្កាត់ទឹកល្អក់១","សង្កាត់ទឹកល្អក់២","សង្កាត់ទួលស្វាយព្រៃ១","សង្កាត់ទួលស្វាយព្រៃ២","សង្កាត់បឹងកក់១","សង្កាត់បឹងកក់២","សង្កាត់បឹងសាឡាង","សង្កាត់ផ្សារដើមគរ"],
+  "ខណ្ឌដង្កោ": ["សង្កាត់ដង្កោ","សង្កាត់ព្រៃស","សង្កាត់សាក់សំពៅ","សង្កាត់ជើងឯក","សង្កាត់ពងទឹក","សង្កាត់ក្រាំងពង្រ"],
+  "ខណ្ឌមានជ័យ": ["សង្កាត់ស្ទឹងមានជ័យ១","សង្កាត់ស្ទឹងមានជ័យ២","សង្កាត់ស្ទឹងមានជ័យ៣","សង្កាត់បឹងទំពុន១","សង្កាត់បឹងទំពុន២","សង្កាត់ចាក់អង្រែលើ","សង្កាត់ចាក់អង្រែក្រោម"],
+  "ខណ្ឌឫស្សីកែវ": ["សង្កាត់ឫស្សីកែវ","សង្កាត់ស្វាយប៉ាក","សង្កាត់គីឡូម៉ែត្រលេខ៦","សង្កាត់ច្រាំងចំរេះ១","សង្កាត់ច្រាំងចំរេះ២","សង្កាត់ទួលសង្កែ១","សង្កាត់ទួលសង្កែ២"],
+  "ខណ្ឌសែនសុខ": ["សង្កាត់ភ្នំពេញថ្មី","សង្កាត់ទឹកថ្លា","សង្កាត់ឃ្មួញ","សង្កាត់ក្រាំងធ្នង់","សង្កាត់គោកឃ្លាង","សង្កាត់អូរបែកក្អម"],
+  "ខណ្ឌពោធិ៍សែនជ័យ": ["សង្កាត់កាកាប១","សង្កាត់កាកាប២","សង្កាត់ចោមចៅ១","សង្កាត់ចោមចៅ២","សង្កាត់ចោមចៅ៣","សង្កាត់សំរោងក្រោម","សង្កាត់កន្ទោក"],
+  "ខណ្ឌជ្រោយចង្វារ": ["សង្កាត់ជ្រោយចង្វារ","សង្កាត់ព្រែកលៀប","សង្កាត់ព្រែកតាសេក","សង្កាត់បាក់ខែង","សង្កាត់កោះដាច់"],
+  "ខណ្ឌព្រែកព្នៅ": ["សង្កាត់ព្រែកព្នៅ","សង្កាត់ពញាពន់","សង្កាត់ពន្សាំង","សង្កាត់សំរោង","សង្កាត់គោករកា"],
+  "ខណ្ឌកំបូល": ["សង្កាត់កំបូល","សង្កាត់កន្ទោក","សង្កាត់ប្រទះឡាង","សង្កាត់ស្នោរ","សង្កាត់ភ្លើងឆេះរទេះ"],
+  "ខណ្ឌបឹងកេងកង": ["សង្កាត់បឹងកេងកង១","សង្កាត់បឹងកេងកង២","សង្កាត់បឹងកេងកង៣","សង្កាត់អូឡាំពិក","សង្កាត់ទំនប់ទឹក"],
+  "ខណ្ឌច្បារអំពៅ": ["សង្កាត់ច្បារអំពៅ១","សង្កាត់ច្បារអំពៅ២","សង្កាត់និរោធ","សង្កាត់ព្រែកប្រា","សង្កាត់វាលស្បូវ","សង្កាត់ក្បាលកោះ","សង្កាត់ព្រែកឯង"]
+};
 function prefetchVillagesForDistrict_(provinceName, districtName) {
   var communes = getCommunesByProvinceDistrict_(provinceName, districtName);
   for (var i = 0; i < communes.length; i++) {
